@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/SimplyCppFunctions.cmake")
+
+find_or_install_package(sc-core simply-cpp-dev simply-cpp 1.7.0)
+
+include("${CMAKE_CURRENT_LIST_DIR}/sc-cassandraTargets.cmake")
