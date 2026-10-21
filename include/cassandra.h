@@ -108,7 +108,7 @@ namespace sc {
         cql_type type = cql_type::blob;
     };
 
-    // One row of a result, its values in the columns' order.
+    // Values in the columns' order.
     class cql_row {
     public:
         cql_row(std::shared_ptr<const std::vector<cql_column>> columns, std::vector<cql_value> values)
@@ -172,9 +172,8 @@ namespace sc {
     };
 
     // One connection to the first contact point that answers (a contact point without a port uses
-    // 9042), shared by the
-    // threads using it: queries take turns. A connection that broke is replaced once,
-    // transparently, trying the contact points again.
+    // 9042), shared by the threads using it: queries take turns. A connection that broke is
+    // replaced once, transparently, trying the contact points again.
     class cassandra {
     public:
         explicit cassandra(ip_endpoints contact_points);
@@ -192,7 +191,6 @@ namespace sc {
 
         // The server's version (system.local's release_version), as read when connecting.
         [[nodiscard]] std::string release_version() const;
-        // Where it's connected now.
         [[nodiscard]] ip_endpoint connected_to() const;
 
     private:
