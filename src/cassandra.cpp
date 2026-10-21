@@ -50,14 +50,8 @@ namespace {
             byte(static_cast<std::uint8_t>(value >> 8));
             byte(static_cast<std::uint8_t>(value));
         }
-        void int_(const std::int32_t value) {
-            const auto bits = static_cast<std::uint32_t>(value);
-            for (int shift = 24; shift >= 0; shift -= 8) byte(static_cast<std::uint8_t>(bits >> shift));
-        }
-        void long_(const std::int64_t value) {
-            const auto bits = static_cast<std::uint64_t>(value);
-            for (int shift = 56; shift >= 0; shift -= 8) byte(static_cast<std::uint8_t>(bits >> shift));
-        }
+        void int_(const std::int32_t value) { integer(value); }
+        void long_(const std::int64_t value) { integer(value); }
         void raw(const std::string_view data) { bytes_.append(data); }
         void string(const std::string_view text) { // [string]: a short length
             if (text.size() > 0xFFFF) throw std::invalid_argument("CQL: a [string] over 65535 bytes");
@@ -83,8 +77,21 @@ namespace {
         [[nodiscard]] const std::string &data() const { return bytes_; }
 
     private:
+        template<typename Integer>
+        void integer(const Integer value) {
+            const auto bits = static_cast<std::make_unsigned_t<Integer>>(value);
+            for (int shift = 8 * (sizeof bits - 1); shift >= 0; shift -= 8) byte(static_cast<std::uint8_t>(bits >> shift));
+        }
+
         std::string bytes_;
     };
+
+    template<typename Integer>
+    Integer big_endian(const std::string_view bytes) {
+        std::uint64_t bits = 0;
+        for (const char c: bytes) bits = (bits << 8) | static_cast<std::uint8_t>(c);
+        return static_cast<Integer>(bits);
+    }
 
     // Big-endian protocol notation, read; throws on running past the end.
     class reader {
@@ -92,22 +99,8 @@ namespace {
         explicit reader(const std::string_view data) : data_(data) {
         }
         std::uint8_t byte() { return static_cast<std::uint8_t>(take(1)[0]); }
-        std::uint16_t short_() {
-            const auto b = take(2);
-            return static_cast<std::uint16_t>((static_cast<std::uint8_t>(b[0]) << 8) | static_cast<std::uint8_t>(b[1]));
-        }
-        std::int32_t int_() {
-            const auto b = take(4);
-            std::uint32_t bits = 0;
-            for (const char c: b) bits = (bits << 8) | static_cast<std::uint8_t>(c);
-            return static_cast<std::int32_t>(bits);
-        }
-        std::int64_t long_() {
-            const auto b = take(8);
-            std::uint64_t bits = 0;
-            for (const char c: b) bits = (bits << 8) | static_cast<std::uint8_t>(c);
-            return static_cast<std::int64_t>(bits);
-        }
+        std::uint16_t short_() { return big_endian<std::uint16_t>(take(2)); }
+        std::int32_t int_() { return big_endian<std::int32_t>(take(4)); }
         std::string string() { return std::string{take(short_())}; }
         std::optional<std::string_view> bytes() {
             const auto length = int_();
@@ -151,13 +144,6 @@ namespace {
             default: break;
         }
         return id;
-    }
-
-    template<typename Integer>
-    Integer big_endian(const std::string_view bytes) {
-        std::uint64_t bits = 0;
-        for (const char c: bytes) bits = (bits << 8) | static_cast<std::uint8_t>(c);
-        return static_cast<Integer>(bits);
     }
 
     std::string uuid_text(const std::string_view bytes) {
@@ -263,10 +249,6 @@ namespace {
         return out.data();
     }
 
-    std::string describe(const sc::ip_endpoint &endpoint) {
-        return endpoint.host + ":" + std::to_string(endpoint.port);
-    }
-
     // A blocking TCP connection with timeouts on connecting and on each reply.
     class connection {
     public:
@@ -279,7 +261,7 @@ namespace {
             addrinfo *found = nullptr;
             const auto port = std::to_string(endpoint.port);
             if (const int error = getaddrinfo(endpoint.host.c_str(), port.c_str(), &hints, &found); error != 0) {
-                throw connection_lost(describe(endpoint) + ": " + gai_strerror(error));
+                throw connection_lost(endpoint.to_string() + ": " + gai_strerror(error));
             }
             std::string failure = "no address";
             for (const addrinfo *each = found; each && fd_ < 0; each = each->ai_next) {
@@ -292,7 +274,7 @@ namespace {
                 }
             }
             freeaddrinfo(found);
-            if (fd_ < 0) throw connection_lost(describe(endpoint) + ": " + failure);
+            if (fd_ < 0) throw connection_lost(endpoint.to_string() + ": " + failure);
             const int yes = 1;
             setsockopt(fd_, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof yes);
 #ifdef SO_NOSIGPIPE
