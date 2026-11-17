@@ -16,14 +16,14 @@ their queries take turns on its one connection.
 ```cpp
 #include <cassandra.h>
 
-sc::cassandra db{"vms:20001"};
+sc::cassandra db{"cassandra.example.com:9042"};
 const auto rows = db.query(
-    "select positioning_time, location, speed from vehicle_data.device_locus "
-    "where vehicle_id = ? and positioning_time <= ? limit ?",
+    "select ordered_at, status, total from shop.orders "
+    "where customer_id = ? and ordered_at <= ? limit ?",
     {std::int64_t{389}, std::chrono::system_clock::now(), 10});
 for (const auto &row: rows) {
-    const auto when = row["positioning_time"].as<sc::cql_timestamp>();
-    const auto speed = row["speed"].as<double>();
+    const auto when = row["ordered_at"].as<sc::cql_timestamp>();
+    const auto total = row["total"].as<double>();
 }
 ```
 

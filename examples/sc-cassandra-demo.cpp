@@ -1,8 +1,8 @@
 // Runs a CQL query and prints its rows as a table: the columns with their types, then each row.
 // Without a query it shows the server's version and its keyspaces.
 //
-//     sc-cassandra-demo --hosts vms:20001 "select vehicle_id, positioning_time, speed
-//         from vehicle_data.device_locus where vehicle_id = 389 limit 5"
+//     sc-cassandra-demo --hosts cassandra.example.com:9042 "select customer_id, ordered_at, total
+//         from shop.orders where customer_id = 389 limit 5"
 
 #include <cassandra.h>
 #include <params.h>

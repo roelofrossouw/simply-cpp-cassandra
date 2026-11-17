@@ -16,11 +16,11 @@
 // A small Cassandra client: CQL queries with bound values over the native protocol (v4), straight
 // over a socket, with no driver underneath. Rows come back with their columns' types.
 //
-//     sc::cassandra db{"vms:20001"};
-//     const auto rows = db.query("select positioning_time, speed from vehicle_data.device_locus "
-//                                "where vehicle_id = ? and positioning_time <= ? limit ?",
+//     sc::cassandra db{"cassandra.example.com:9042"};
+//     const auto rows = db.query("select ordered_at, total from shop.orders "
+//                                "where customer_id = ? and ordered_at <= ? limit ?",
 //                                {std::int64_t{389}, std::chrono::system_clock::now(), 10});
-//     for (const auto &row: rows) row["speed"].as<double>();
+//     for (const auto &row: rows) row["total"].as<double>();
 namespace sc {
     // How many replicas must answer (CQL's consistency levels, in the protocol's numbering).
     enum class cql_consistency : std::uint16_t {

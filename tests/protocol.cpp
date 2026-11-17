@@ -194,7 +194,7 @@ namespace {
             if (cql == "SELECT release_version FROM system.local") {
                 return reply(fd, stream, 0x08, rows_result({{"release_version", 0x000D}}, {{std::string{"4.0.12"}}}));
             }
-            if (cql.starts_with("USE ")) return reply(fd, stream, 0x08, int_(3) + string_("vehicle_data"));
+            if (cql.starts_with("USE ")) return reply(fd, stream, 0x08, int_(3) + string_("shop"));
             if (cql == "insert") return reply(fd, stream, 0x08, int_(1)); // Void
             if (cql == "bad") return reply(fd, stream, 0x00, int_(0x2000) + string_("line 1:0 no viable alternative at input 'bad'"));
             if (cql == "types") {
@@ -369,9 +369,9 @@ int main() {
     SECTION("A keyspace is USE'd after connecting");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.keyspace = "vehicle_data"}};
+        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.keyspace = "shop"}};
         const std::lock_guard lock{server.seen_mutex};
-        CHECK_EQ(server.queries.front(), string{"USE \"vehicle_data\""});
+        CHECK_EQ(server.queries.front(), string{"USE \"shop\""});
     }
 
     SECTION("A login, when the server asks for one");
