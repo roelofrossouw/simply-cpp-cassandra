@@ -1,4 +1,4 @@
-#include "cassandra.h"
+#include <sc/cassandra/cassandra.h>
 
 #include <arpa/inet.h>
 #include <fcntl.h>

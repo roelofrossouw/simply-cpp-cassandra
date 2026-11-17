@@ -10,9 +10,9 @@ message(STATUS "SimplyCPP ${SC_MODULE} Version: ${SC_VERSION}")
 
 # sc-core: ip_endpoints, and params for the demo. No other dependency: the CQL native protocol
 # (v4) is spoken directly over a socket.
-find_or_install_package(sc-core simply-cpp-dev simply-cpp 1.20.0)
+find_or_install_package(sc-core simply-cpp-dev simply-cpp 2.2.0)
 
-set(SOURCE_OBJECTS include/cassandra.h)
+set(SOURCE_OBJECTS include/sc/cassandra/cassandra.h)
 set(SOURCE_LIBRARIES)
 set(SOURCE_LINK_LIBRARIES)
 

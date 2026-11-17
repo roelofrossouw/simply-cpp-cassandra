@@ -4,8 +4,8 @@
 //     sc-cassandra-demo --hosts cassandra.example.com:9042 "select customer_id, ordered_at, total
 //         from shop.orders where customer_id = 389 limit 5"
 
-#include <cassandra.h>
-#include <params.h>
+#include <sc/cassandra/cassandra.h>
+#include <sc/core/params.h>
 
 #include <algorithm>
 #include <iostream>

@@ -3,7 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <ip_endpoints.h>
+#include <sc/core/ip_endpoints.h>
 #include <memory>
 #include <optional>
 #include <stdexcept>

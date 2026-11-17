@@ -14,7 +14,7 @@ their queries take turns on its one connection.
 **Documentation:** the [simply-cpp wiki](https://github.com/roelofrossouw/simply-cpp/wiki) has a [Cassandra guide](https://github.com/roelofrossouw/simply-cpp/wiki/Cassandra) and the [sc-cassandra reference](https://github.com/roelofrossouw/simply-cpp/wiki/Reference-sc-cassandra), plus [getting started](https://github.com/roelofrossouw/simply-cpp/wiki/Getting-Started) for the whole suite.
 
 ```cpp
-#include <cassandra.h>
+#include <sc/cassandra/cassandra.h>
 
 sc::cassandra db{"cassandra.example.com:9042"};
 const auto rows = db.query(

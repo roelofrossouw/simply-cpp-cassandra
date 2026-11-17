@@ -1,7 +1,7 @@
 // Against a real Cassandra, when SC_CASSANDRA_TEST_HOSTS names one (host[:port], ';'-separated);
 // skipped otherwise. Reads system tables only, so any server will do.
 
-#include <cassandra.h>
+#include <sc/cassandra/cassandra.h>
 #include <sc_test.h>
 
 #include <chrono>

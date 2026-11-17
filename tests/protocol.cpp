@@ -3,7 +3,7 @@
 // every type the client decodes, paging, errors, EVENT frames in between and dropped
 // connections, so the framing and the decoding are checked without a real server.
 
-#include <cassandra.h>
+#include <sc/cassandra/cassandra.h>
 #include <sc_test.h>
 
 #include <arpa/inet.h>
