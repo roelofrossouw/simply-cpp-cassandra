@@ -248,7 +248,7 @@ int main() {
     SECTION("Connecting: STARTUP, then the server's version");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
         CHECK_EQ(db.release_version(), string{"4.0.12"});
         CHECK_EQ(db.connected_to().port, server.port());
         CHECK_EQ(server.connections.load(), 1);
@@ -257,18 +257,18 @@ int main() {
     SECTION("Every type the client decodes, and the ones that arrive as blobs");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
         const auto rows = db.query("types");
         CHECK_EQ(rows.size(), std::size_t{1});
         CHECK_EQ(rows.columns().size(), std::size_t{20});
         CHECK_EQ(rows.columns()[0].keyspace, string{"ks"});
         CHECK_EQ(rows.columns()[0].table, string{"t"});
-        CHECK(rows.columns()[17].type == sc::cql_type::list);
-        CHECK_EQ(string{sc::cql_type_name(rows.columns()[10].type)}, string{"text"});
+        CHECK(rows.columns()[17].type == sc::cassandra::column_type::list);
+        CHECK_EQ(string{sc::cassandra::column_type_name(rows.columns()[10].type)}, string{"text"});
         const auto &row = rows[0];
         CHECK_EQ(row["a"].as<string>(), string{"plain"});
         CHECK_EQ(row["big"].as<std::int64_t>(), std::int64_t{-5});
-        CHECK(row["blob"].as<sc::cql_blob>() == (sc::cql_blob{std::byte{1}, std::byte{2}}));
+        CHECK(row["blob"].as<sc::cassandra::blob>() == (sc::cassandra::blob{std::byte{1}, std::byte{2}}));
         CHECK_EQ(row["blob"].text(), string{"0x0102"});
         CHECK(row["yes"].as<bool>());
         CHECK_EQ(row["count"].as<std::int64_t>(), std::int64_t{7});
@@ -278,7 +278,7 @@ int main() {
         CHECK_EQ(row["d"].text(), string{"-26.126786"}); // the shortest text that reads back the same
         CHECK_EQ(row["i"].as<std::int32_t>(), std::int32_t{-274});
         CHECK_EQ(row["i"].as<std::int64_t>(), std::int64_t{-274}); // an int widens
-        CHECK(row["at"].as<sc::cql_timestamp>() == sc::cql_timestamp{std::chrono::milliseconds{1792457577000}});
+        CHECK(row["at"].as<sc::cassandra::timestamp>() == sc::cassandra::timestamp{std::chrono::milliseconds{1792457577000}});
         CHECK_EQ(row["at"].text(), string{"2026-10-20T00:52:57.000Z"});
         CHECK_EQ(row["id"].as<string>(), string{"123e4567-e89b-12d3-a456-426614174000"});
         CHECK_EQ(row["name"].as<string>(), string{"tëxt"});
@@ -288,8 +288,8 @@ int main() {
         CHECK_EQ(row["tod"].as<std::int64_t>(), std::int64_t{3600000000000}); // 01:00, in nanoseconds
         CHECK_EQ(row["small"].as<std::int32_t>(), std::int32_t{-2});
         CHECK_EQ(row["tiny"].as<std::int32_t>(), std::int32_t{-2});
-        CHECK_EQ(row["tags"].as<sc::cql_blob>().size(), std::size_t{4}); // a list: its bytes
-        CHECK_EQ(row["scores"].as<sc::cql_blob>().size(), std::size_t{1}); // the map's nested types were read past
+        CHECK_EQ(row["tags"].as<sc::cassandra::blob>().size(), std::size_t{4}); // a list: its bytes
+        CHECK_EQ(row["scores"].as<sc::cassandra::blob>().size(), std::size_t{1}); // the map's nested types were read past
         CHECK(row["missing"].is_null());
         CHECK_EQ(row["missing"].text(), string{"null"});
         CHECK_THROWS_AS((void) row["nope"], std::out_of_range);
@@ -299,11 +299,11 @@ int main() {
     SECTION("Bound values go as their C++ types say, and come back the same");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
         const auto at = std::chrono::system_clock::time_point{std::chrono::milliseconds{1792457577123}} + 456us;
-        const std::vector<sc::cql_value> values{10, std::int64_t{389}, 2.5, 0.25f, "text", at, true,
-                                                sc::cql_blob{std::byte{0xAB}}, nullptr};
-        const auto rows = db.query("echo", values, sc::cql_consistency::local_quorum);
+        const std::vector<sc::cassandra::value> values{10, std::int64_t{389}, 2.5, 0.25f, "text", at, true,
+                                                sc::cassandra::blob{std::byte{0xAB}}, nullptr};
+        const auto rows = db.query("echo", values, sc::cassandra::consistency_level::local_quorum);
         {
             const std::lock_guard lock{server.seen_mutex};
             const auto &sent = server.values.back();
@@ -320,17 +320,17 @@ int main() {
         CHECK_EQ(row[2].as<double>(), 2.5);
         CHECK_EQ(row[3].as<float>(), 0.25f);
         CHECK_EQ(row[4].as<string>(), string{"text"});
-        CHECK(row[5].as<sc::cql_timestamp>() == sc::cql_timestamp{std::chrono::milliseconds{1792457577123}});
+        CHECK(row[5].as<sc::cassandra::timestamp>() == sc::cassandra::timestamp{std::chrono::milliseconds{1792457577123}});
         CHECK(row[6].as<bool>());
-        CHECK(row[7].as<sc::cql_blob>() == sc::cql_blob{std::byte{0xAB}});
+        CHECK(row[7].as<sc::cassandra::blob>() == sc::cassandra::blob{std::byte{0xAB}});
         CHECK(row[8].is_null());
-        CHECK(sc::cql_value{"x"} == sc::cql_value{string{"x"}});
+        CHECK(sc::cassandra::value{"x"} == sc::cassandra::value{string{"x"}});
     }
 
     SECTION("A result over several pages comes back whole");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
         const auto rows = db.query("paged");
         CHECK_EQ(rows.size(), std::size_t{3});
         CHECK_EQ(rows[2]["n"].as<std::int32_t>(), 3);
@@ -341,14 +341,14 @@ int main() {
     SECTION("Nothing to return, an error, and EVENT frames in between");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
         const auto none = db.query("insert");
         CHECK(none.empty());
         CHECK(none.columns().empty());
         try {
             (void) db.query("bad");
             CHECK_MSG(false, "an error reply should throw");
-        } catch (const sc::cql_error &error) {
+        } catch (const sc::cassandra::error &error) {
             CHECK_EQ(error.code, 0x2000);
             CHECK(string{error.what()}.find("no viable alternative") != string::npos);
         }
@@ -360,7 +360,7 @@ int main() {
     SECTION("A dropped connection is replaced once, transparently");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}};
         server.drop_next_query = true;
         CHECK_EQ(db.query("paged").size(), std::size_t{3});
         CHECK_EQ(server.connections.load(), 2);
@@ -369,7 +369,7 @@ int main() {
     SECTION("A keyspace is USE'd after connecting");
     {
         fake_cassandra server;
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.keyspace = "shop"}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.keyspace = "shop"}};
         const std::lock_guard lock{server.seen_mutex};
         CHECK_EQ(server.queries.front(), string{"USE \"shop\""});
     }
@@ -378,25 +378,25 @@ int main() {
     {
         fake_cassandra server{"secret"};
         {
-            sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.user = "tester", .password = "secret"}};
+            sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.user = "tester", .password = "secret"}};
             CHECK_EQ(db.release_version(), string{"4.0.12"});
         } // the fake serves one connection at a time
-        CHECK_THROWS_AS((sc::cassandra{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.user = "tester", .password = "wrong"}}),
-                        sc::cql_error);
-        CHECK_THROWS_AS((sc::cassandra{sc::ip_endpoints{{"127.0.0.1", server.port()}}}), sc::cql_error); // none configured
+        CHECK_THROWS_AS((sc::cassandra::client{sc::ip_endpoints{{"127.0.0.1", server.port()}}, {.user = "tester", .password = "wrong"}}),
+                        sc::cassandra::error);
+        CHECK_THROWS_AS((sc::cassandra::client{sc::ip_endpoints{{"127.0.0.1", server.port()}}}), sc::cassandra::error); // none configured
     }
 
-    SECTION("No contact point answering: cassandra_unavailable, naming each");
+    SECTION("No contact point answering: unavailable, naming each");
     {
         int port = 0;
         { fake_cassandra gone; port = gone.port(); } // a port nothing listens on any more
         try {
-            sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", port}}, {.connect_timeout = 500ms}};
+            sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", port}}, {.connect_timeout = 500ms}};
             CHECK_MSG(false, "connecting should fail");
-        } catch (const sc::cassandra_unavailable &error) {
+        } catch (const sc::cassandra::unavailable &error) {
             CHECK(string{error.what()}.find("127.0.0.1:" + std::to_string(port)) != string::npos);
         }
-        CHECK_THROWS_AS(sc::cassandra{sc::ip_endpoints{}}, std::invalid_argument);
+        CHECK_THROWS_AS(sc::cassandra::client{sc::ip_endpoints{}}, std::invalid_argument);
     }
 
     SECTION("The first contact point that answers, a missing port meaning 9042");
@@ -404,7 +404,7 @@ int main() {
         fake_cassandra server;
         int dead = 0;
         { fake_cassandra gone; dead = gone.port(); }
-        sc::cassandra db{sc::ip_endpoints{{"127.0.0.1", dead}, {"127.0.0.1", server.port()}}, {.connect_timeout = 500ms}};
+        sc::cassandra::client db{sc::ip_endpoints{{"127.0.0.1", dead}, {"127.0.0.1", server.port()}}, {.connect_timeout = 500ms}};
         CHECK_EQ(db.connected_to().port, server.port());
     }
 

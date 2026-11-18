@@ -16,7 +16,7 @@ int main() {
         std::cout << "   (SC_CASSANDRA_TEST_HOSTS isn't set: no server to test against)" << std::endl;
         return 0;
     }
-    sc::cassandra db{hosts};
+    sc::cassandra::client db{hosts};
 
     SECTION("Connected, and the server's version");
     CHECK(!db.release_version().empty());
@@ -25,7 +25,7 @@ int main() {
     {
         const auto rows = db.query("select keyspace_name, durable_writes from system_schema.keyspaces");
         CHECK(!rows.empty());
-        CHECK(rows.columns()[1].type == sc::cql_type::boolean);
+        CHECK(rows.columns()[1].type == sc::cassandra::column_type::boolean);
         bool system = false;
         for (const auto &row: rows) system = system || row["keyspace_name"].as<string>() == "system";
         CHECK(system);
@@ -40,17 +40,17 @@ int main() {
     SECTION("A timestamp from the server, near the client's clock");
     {
         const auto rows = db.query("select toTimestamp(now()) as at from system.local");
-        CHECK(rows.columns()[0].type == sc::cql_type::timestamp);
-        const auto difference = rows[0]["at"].as<sc::cql_timestamp>() - std::chrono::system_clock::now();
+        CHECK(rows.columns()[0].type == sc::cassandra::column_type::timestamp);
+        const auto difference = rows[0]["at"].as<sc::cassandra::timestamp>() - std::chrono::system_clock::now();
         CHECK(std::chrono::abs(difference) < std::chrono::minutes{5});
     }
 
-    SECTION("A syntax error is a cql_error with its code");
+    SECTION("A syntax error is a error with its code");
     {
         try {
             (void) db.query("selec nothing");
             CHECK_MSG(false, "should throw");
-        } catch (const sc::cql_error &error) {
+        } catch (const sc::cassandra::error &error) {
             CHECK_EQ(error.code, 0x2000);
         }
         CHECK_EQ(db.query("select release_version from system.local").size(), std::size_t{1}); // and the connection stays

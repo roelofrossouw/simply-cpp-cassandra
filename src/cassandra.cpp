@@ -38,8 +38,8 @@ namespace {
     constexpr std::int32_t rows_global_table_spec = 0x0001, rows_has_more_pages = 0x0002, rows_no_metadata = 0x0004;
 
     // A broken or timed-out connection, as opposed to Cassandra answering with an error.
-    struct connection_lost : sc::cassandra_unavailable {
-        using sc::cassandra_unavailable::cassandra_unavailable;
+    struct connection_lost : sc::cassandra::unavailable {
+        using sc::cassandra::unavailable::unavailable;
     };
 
     // Big-endian protocol notation, written.
@@ -122,14 +122,14 @@ namespace {
 
     // A column type's [option], with what collections and user types nest consumed; the nested
     // types aren't kept, as those columns arrive as blobs.
-    sc::cql_type read_type(reader &in) {
-        const auto id = static_cast<sc::cql_type>(in.short_());
+    sc::cassandra::column_type read_type(reader &in) {
+        const auto id = static_cast<sc::cassandra::column_type>(in.short_());
         switch (id) {
-            case sc::cql_type::custom: (void) in.string(); break;
-            case sc::cql_type::list:
-            case sc::cql_type::set: (void) read_type(in); break;
-            case sc::cql_type::map: (void) read_type(in); (void) read_type(in); break;
-            case sc::cql_type::udt: {
+            case sc::cassandra::column_type::custom: (void) in.string(); break;
+            case sc::cassandra::column_type::list:
+            case sc::cassandra::column_type::set: (void) read_type(in); break;
+            case sc::cassandra::column_type::map: (void) read_type(in); (void) read_type(in); break;
+            case sc::cassandra::column_type::udt: {
                 (void) in.string(); // keyspace
                 (void) in.string(); // type name
                 for (int fields = in.short_(); fields > 0; --fields) {
@@ -138,7 +138,7 @@ namespace {
                 }
                 break;
             }
-            case sc::cql_type::tuple:
+            case sc::cassandra::column_type::tuple:
                 for (int elements = in.short_(); elements > 0; --elements) (void) read_type(in);
                 break;
             default: break;
@@ -177,35 +177,35 @@ namespace {
         return civil_date(static_cast<std::int64_t>(days) - (std::int64_t{1} << 31));
     }
 
-    sc::cql_value decode(const sc::cql_type type, const std::optional<std::string_view> cell) {
-        using sc::cql_type;
+    sc::cassandra::value decode(const sc::cassandra::column_type type, const std::optional<std::string_view> cell) {
+        using sc::cassandra::column_type;
         if (!cell) return {};
         const auto bytes = *cell;
         const auto needs = [&](const std::size_t size) {
             if (bytes.size() != size) {
-                throw std::runtime_error("CQL: a " + std::string{sc::cql_type_name(type)} + " of " + std::to_string(bytes.size()) +
+                throw std::runtime_error("CQL: a " + std::string{sc::cassandra::column_type_name(type)} + " of " + std::to_string(bytes.size()) +
                                          " bytes");
             }
         };
         switch (type) {
-            case cql_type::ascii:
-            case cql_type::varchar: return std::string{bytes};
-            case cql_type::boolean: needs(1); return bytes[0] != 0;
-            case cql_type::int_: needs(4); return big_endian<std::int32_t>(bytes);
-            case cql_type::smallint: needs(2); return static_cast<std::int32_t>(big_endian<std::int16_t>(bytes));
-            case cql_type::tinyint: needs(1); return static_cast<std::int32_t>(static_cast<std::int8_t>(bytes[0]));
-            case cql_type::bigint:
-            case cql_type::counter:
-            case cql_type::time: needs(8); return big_endian<std::int64_t>(bytes);
-            case cql_type::float_: needs(4); return std::bit_cast<float>(big_endian<std::uint32_t>(bytes));
-            case cql_type::double_: needs(8); return std::bit_cast<double>(big_endian<std::uint64_t>(bytes));
-            case cql_type::timestamp:
+            case column_type::ascii:
+            case column_type::varchar: return std::string{bytes};
+            case column_type::boolean: needs(1); return bytes[0] != 0;
+            case column_type::int_: needs(4); return big_endian<std::int32_t>(bytes);
+            case column_type::smallint: needs(2); return static_cast<std::int32_t>(big_endian<std::int16_t>(bytes));
+            case column_type::tinyint: needs(1); return static_cast<std::int32_t>(static_cast<std::int8_t>(bytes[0]));
+            case column_type::bigint:
+            case column_type::counter:
+            case column_type::time: needs(8); return big_endian<std::int64_t>(bytes);
+            case column_type::float_: needs(4); return std::bit_cast<float>(big_endian<std::uint32_t>(bytes));
+            case column_type::double_: needs(8); return std::bit_cast<double>(big_endian<std::uint64_t>(bytes));
+            case column_type::timestamp:
                 needs(8);
-                return sc::cql_timestamp{std::chrono::milliseconds{big_endian<std::int64_t>(bytes)}};
-            case cql_type::uuid:
-            case cql_type::timeuuid: needs(16); return uuid_text(bytes);
-            case cql_type::date: needs(4); return date_text(big_endian<std::uint32_t>(bytes));
-            case cql_type::inet: {
+                return sc::cassandra::timestamp{std::chrono::milliseconds{big_endian<std::int64_t>(bytes)}};
+            case column_type::uuid:
+            case column_type::timeuuid: needs(16); return uuid_text(bytes);
+            case column_type::date: needs(4); return date_text(big_endian<std::uint32_t>(bytes));
+            case column_type::inet: {
                 char text[INET6_ADDRSTRLEN]{};
                 if (bytes.size() == 4 || bytes.size() == 16) {
                     inet_ntop(bytes.size() == 4 ? AF_INET : AF_INET6, bytes.data(), text, sizeof text);
@@ -215,13 +215,13 @@ namespace {
             }
             default: break;
         }
-        sc::cql_blob blob(bytes.size());
+        sc::cassandra::blob blob(bytes.size());
         std::memcpy(blob.data(), bytes.data(), bytes.size());
         return blob;
     }
 
     // A bound value's [value] bytes, by its C++ type.
-    std::optional<std::string> encode(const sc::cql_value &value) {
+    std::optional<std::string> encode(const sc::cassandra::value &value) {
         writer out;
         const bool null = std::visit([&]<typename T>(const T &held) {
             if constexpr (std::is_same_v<T, std::monostate>) {
@@ -238,9 +238,9 @@ namespace {
                 out.long_(std::bit_cast<std::int64_t>(held));
             } else if constexpr (std::is_same_v<T, std::string>) {
                 out.raw(held);
-            } else if constexpr (std::is_same_v<T, sc::cql_timestamp>) {
+            } else if constexpr (std::is_same_v<T, sc::cassandra::timestamp>) {
                 out.long_(held.time_since_epoch().count());
-            } else if constexpr (std::is_same_v<T, sc::cql_blob>) {
+            } else if constexpr (std::is_same_v<T, sc::cassandra::blob>) {
                 out.raw({reinterpret_cast<const char *>(held.data()), held.size()});
             }
             return false;
@@ -361,39 +361,39 @@ namespace {
     };
 }
 
-std::string_view sc::cql_type_name(const cql_type type) {
+std::string_view sc::cassandra::column_type_name(const column_type type) {
     switch (type) {
-        case cql_type::custom: return "custom";
-        case cql_type::ascii: return "ascii";
-        case cql_type::bigint: return "bigint";
-        case cql_type::blob: return "blob";
-        case cql_type::boolean: return "boolean";
-        case cql_type::counter: return "counter";
-        case cql_type::decimal: return "decimal";
-        case cql_type::double_: return "double";
-        case cql_type::float_: return "float";
-        case cql_type::int_: return "int";
-        case cql_type::timestamp: return "timestamp";
-        case cql_type::uuid: return "uuid";
-        case cql_type::varchar: return "text";
-        case cql_type::varint: return "varint";
-        case cql_type::timeuuid: return "timeuuid";
-        case cql_type::inet: return "inet";
-        case cql_type::date: return "date";
-        case cql_type::time: return "time";
-        case cql_type::smallint: return "smallint";
-        case cql_type::tinyint: return "tinyint";
-        case cql_type::duration: return "duration";
-        case cql_type::list: return "list";
-        case cql_type::map: return "map";
-        case cql_type::set: return "set";
-        case cql_type::udt: return "udt";
-        case cql_type::tuple: return "tuple";
+        case column_type::custom: return "custom";
+        case column_type::ascii: return "ascii";
+        case column_type::bigint: return "bigint";
+        case column_type::blob: return "blob";
+        case column_type::boolean: return "boolean";
+        case column_type::counter: return "counter";
+        case column_type::decimal: return "decimal";
+        case column_type::double_: return "double";
+        case column_type::float_: return "float";
+        case column_type::int_: return "int";
+        case column_type::timestamp: return "timestamp";
+        case column_type::uuid: return "uuid";
+        case column_type::varchar: return "text";
+        case column_type::varint: return "varint";
+        case column_type::timeuuid: return "timeuuid";
+        case column_type::inet: return "inet";
+        case column_type::date: return "date";
+        case column_type::time: return "time";
+        case column_type::smallint: return "smallint";
+        case column_type::tinyint: return "tinyint";
+        case column_type::duration: return "duration";
+        case column_type::list: return "list";
+        case column_type::map: return "map";
+        case column_type::set: return "set";
+        case column_type::udt: return "udt";
+        case column_type::tuple: return "tuple";
     }
     return "unknown";
 }
 
-std::string sc::cql_value::text() const {
+std::string sc::cassandra::value::text() const {
     return std::visit([]<typename T>(const T &held) -> std::string {
         if constexpr (std::is_same_v<T, std::monostate>) {
             return "null";
@@ -405,7 +405,7 @@ std::string sc::cql_value::text() const {
             char text[64];
             const auto written = std::to_chars(std::begin(text), std::end(text), held); // the shortest that reads back the same
             return std::string(text, written.ptr);
-        } else if constexpr (std::is_same_v<T, cql_timestamp>) {
+        } else if constexpr (std::is_same_v<T, timestamp>) {
             const auto ms = held.time_since_epoch().count();
             const auto days = (ms >= 0 ? ms : ms - 86399999) / 86400000;
             const auto of_day = ms - days * 86400000;
@@ -413,7 +413,7 @@ std::string sc::cql_value::text() const {
             out << civil_date(days) << 'T' << std::setfill('0') << std::setw(2) << of_day / 3600000 << ':' << std::setw(2)
                 << of_day / 60000 % 60 << ':' << std::setw(2) << of_day / 1000 % 60 << '.' << std::setw(3) << of_day % 1000 << 'Z';
             return out.str();
-        } else if constexpr (std::is_same_v<T, cql_blob>) {
+        } else if constexpr (std::is_same_v<T, blob>) {
             std::ostringstream out;
             out << "0x" << std::hex << std::setfill('0');
             for (const auto b: held) out << std::setw(2) << static_cast<int>(b);
@@ -424,17 +424,17 @@ std::string sc::cql_value::text() const {
     }, value_);
 }
 
-const sc::cql_value &sc::cql_row::operator[](const std::string_view name) const {
+const sc::cassandra::value &sc::cassandra::row::operator[](const std::string_view name) const {
     for (std::size_t i = 0; i < columns_->size(); ++i) {
         if ((*columns_)[i].name == name) return values_.at(i);
     }
     throw std::out_of_range("CQL: the result has no column " + std::string{name});
 }
 
-class sc::cassandra::implementation {
+class sc::cassandra::client::implementation {
 public:
-    implementation(ip_endpoints contact_points, cassandra_options options)
-        : contact_points_(std::move(contact_points)), options_(std::move(options)) {
+    implementation(ip_endpoints contact_points, cassandra::options settings)
+        : contact_points_(std::move(contact_points)), options_(std::move(settings)) {
         if (contact_points_.empty()) throw std::invalid_argument("Cassandra: no contact points");
         for (auto &each: contact_points_) {
             if (each.port == 0) each.port = 9042;
@@ -446,7 +446,7 @@ public:
         connect();
     }
 
-    cql_rows query(const std::string_view cql, const std::vector<cql_value> &values, const cql_consistency consistency) {
+    rows query(const std::string_view cql, const std::vector<value> &values, const consistency_level consistency) {
         const std::lock_guard lock{mutex_};
         try {
             if (!connection_) connect();
@@ -463,7 +463,7 @@ public:
         }
     }
 
-    [[nodiscard]] cql_consistency consistency() const { return options_.consistency; }
+    [[nodiscard]] consistency_level consistency() const { return options_.consistency; }
 
     std::string release_version() const {
         const std::lock_guard lock{mutex_};
@@ -476,8 +476,8 @@ public:
     }
 
 private:
-    // The first contact point that answers and takes the login; throws cassandra_unavailable
-    // naming each failure, or the cql_error of a refused login.
+    // The first contact point that answers and takes the login; throws unavailable
+    // naming each failure, or the error of a refused login.
     void connect() {
         std::string failures;
         for (const auto &endpoint: contact_points_) {
@@ -490,7 +490,7 @@ private:
                     for (std::size_t at = quoted.find('"'); at != std::string::npos; at = quoted.find('"', at + 2)) quoted.insert(at, 1, '"');
                     (void) run("USE \"" + quoted + "\"", {}, options_.consistency);
                 }
-                const auto local = run("SELECT release_version FROM system.local", {}, cql_consistency::one);
+                const auto local = run("SELECT release_version FROM system.local", {}, consistency_level::one);
                 release_version_ = local.empty() || local[0][0].is_null() ? std::string{} : local[0][0].as<std::string>();
                 return;
             } catch (const connection_lost &error) {
@@ -501,7 +501,7 @@ private:
                 throw;
             }
         }
-        throw cassandra_unavailable("Cassandra: no contact point answered (" + failures + ")");
+        throw unavailable("Cassandra: no contact point answered (" + failures + ")");
     }
 
     // STARTUP, and the login when the server asks for one.
@@ -511,7 +511,7 @@ private:
         auto reply = request(opcode::startup, startup.data());
         if (reply.code == opcode::ready) return;
         if (reply.code != opcode::authenticate) throw std::runtime_error("CQL: an unexpected reply to STARTUP");
-        if (options_.user.empty()) throw cql_error(0x0100, "Cassandra asks for a login, and none is configured");
+        if (options_.user.empty()) throw error(0x0100, "Cassandra asks for a login, and none is configured");
         writer login; // SASL PLAIN, as PasswordAuthenticator takes it
         std::string token;
         token += '\0';
@@ -523,13 +523,13 @@ private:
         if (reply.code != opcode::auth_success) throw std::runtime_error("CQL: an unexpected reply to the login");
     }
 
-    cql_rows run(const std::string_view cql, const std::vector<cql_value> &values, const cql_consistency consistency) {
+    rows run(const std::string_view cql, const std::vector<value> &values, const consistency_level consistency) {
         std::vector<std::optional<std::string>> bound;
         bound.reserve(values.size());
         for (const auto &each: values) bound.push_back(encode(each));
 
-        std::shared_ptr<std::vector<cql_column>> columns;
-        std::vector<cql_row> rows;
+        std::shared_ptr<std::vector<column>> columns;
+        std::vector<row> rows;
         std::optional<std::string> paging_state;
         do {
             writer body;
@@ -562,14 +562,14 @@ private:
                 if (const auto state = in.bytes()) paging_state = std::string{*state};
             }
             if (!(meta & rows_no_metadata)) {
-                auto read = std::make_shared<std::vector<cql_column>>();
+                auto read = std::make_shared<std::vector<column>>();
                 std::string keyspace, table;
                 if (meta & rows_global_table_spec) {
                     keyspace = in.string();
                     table = in.string();
                 }
                 for (int i = 0; i < count; ++i) {
-                    cql_column column{keyspace, table, {}, cql_type::blob};
+                    column column{keyspace, table, {}, column_type::blob};
                     if (!(meta & rows_global_table_spec)) {
                         column.keyspace = in.string();
                         column.table = in.string();
@@ -582,7 +582,7 @@ private:
             }
             if (!columns) throw std::runtime_error("CQL: rows without their columns");
             for (auto remaining = in.int_(); remaining > 0; --remaining) {
-                std::vector<cql_value> cells;
+                std::vector<value> cells;
                 cells.reserve(columns->size());
                 for (const auto &column: *columns) cells.push_back(decode(column.type, in.bytes()));
                 rows.emplace_back(columns, std::move(cells));
@@ -592,7 +592,7 @@ private:
     }
 
     // Sends one request and waits for its reply (EVENT frames, unasked for, are skipped);
-    // an ERROR reply is thrown as cql_error.
+    // an ERROR reply is thrown as error.
     frame request(const opcode code, const std::string &body) {
         stream_ = static_cast<std::int16_t>(stream_ >= 0x7FFF ? 1 : stream_ + 1);
         writer header;
@@ -619,16 +619,16 @@ private:
             auto reply_body = length ? connection_->receive(static_cast<std::size_t>(length)) : std::string{};
             if (stream != stream_) continue; // an EVENT (stream -1), or a late reply to something given up on
             if (reply_code == opcode::error) {
-                reader error{reply_body};
-                const auto error_code = error.int_();
-                throw cql_error(error_code, "Cassandra: " + error.string());
+                reader body{reply_body};
+                const auto error_code = body.int_();
+                throw cassandra::error(error_code, "Cassandra: " + body.string());
             }
             return {reply_code, std::move(reply_body)};
         }
     }
 
     ip_endpoints contact_points_;
-    cassandra_options options_;
+    cassandra::options options_;
     mutable std::mutex mutex_;
     std::unique_ptr<connection> connection_;
     std::int16_t stream_ = 0;
@@ -636,28 +636,28 @@ private:
     ip_endpoint connected_to_;
 };
 
-sc::cassandra::cassandra(ip_endpoints contact_points) : cassandra(std::move(contact_points), cassandra_options{}) {
+sc::cassandra::client::client(ip_endpoints contact_points) : client(std::move(contact_points), cassandra::options{}) {
 }
 
-sc::cassandra::cassandra(ip_endpoints contact_points, cassandra_options options)
-    : implementation_(std::make_unique<implementation>(std::move(contact_points), std::move(options))) {
+sc::cassandra::client::client(ip_endpoints contact_points, cassandra::options settings)
+    : implementation_(std::make_unique<implementation>(std::move(contact_points), std::move(settings))) {
 }
 
-sc::cassandra::~cassandra() = default;
+sc::cassandra::client::~client() = default;
 
-sc::cql_rows sc::cassandra::query(const std::string_view cql, const std::vector<cql_value> &values) const {
+sc::cassandra::rows sc::cassandra::client::query(const std::string_view cql, const std::vector<value> &values) const {
     return implementation_->query(cql, values, implementation_->consistency());
 }
 
-sc::cql_rows sc::cassandra::query(const std::string_view cql, const std::vector<cql_value> &values,
-                                  const cql_consistency consistency) const {
+sc::cassandra::rows sc::cassandra::client::query(const std::string_view cql, const std::vector<value> &values,
+                                  const consistency_level consistency) const {
     return implementation_->query(cql, values, consistency);
 }
 
-std::string sc::cassandra::release_version() const {
+std::string sc::cassandra::client::release_version() const {
     return implementation_->release_version();
 }
 
-sc::ip_endpoint sc::cassandra::connected_to() const {
+sc::ip_endpoint sc::cassandra::client::connected_to() const {
     return implementation_->connected_to();
 }

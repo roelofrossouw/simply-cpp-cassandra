@@ -13,12 +13,12 @@
 #include <vector>
 
 namespace {
-    void print(const sc::cql_rows &rows) {
+    void print(const sc::cassandra::rows &rows) {
         const auto &columns = rows.columns();
         std::vector<std::size_t> widths;
         std::vector<std::string> heads;
         for (const auto &column: columns) {
-            heads.push_back(column.name + " (" + std::string{sc::cql_type_name(column.type)} + ")");
+            heads.push_back(column.name + " (" + std::string{sc::cassandra::column_type_name(column.type)} + ")");
             widths.push_back(heads.back().size());
         }
         std::vector<std::vector<std::string>> cells;
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 
     try {
         // [readme]
-        sc::cassandra db{args.as<std::string>("hosts"), {
+        sc::cassandra::client db{args.as<std::string>("hosts"), {
             .user = args.as<std::string>("user"),
             .password = args.as<std::string>("password"),
             .keyspace = args.as<std::string>("keyspace"),
