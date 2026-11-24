@@ -10,14 +10,15 @@ message(STATUS "SimplyCPP ${SC_MODULE} Version: ${SC_VERSION}")
 
 # sc-core: ip_endpoints, and params for the demo. No other dependency: the CQL native protocol
 # (v4) is spoken directly over a socket.
-find_or_install_package(sc-core simply-cpp-dev simply-cpp 3.0.0)
+find_or_install_package(sc-core simply-cpp-dev simply-cpp 4.0.0)
+find_or_install_package(sc-net simply-cpp-net-dev simply-cpp-net 1.0.0)
 
 set(SOURCE_OBJECTS include/sc/cassandra/cassandra.h)
 set(SOURCE_LIBRARIES)
 set(SOURCE_LINK_LIBRARIES)
 
 add_sc_object(cassandra
-        PUBLIC_LINK_LIBRARIES sc::sc-core)
+        PUBLIC_LINK_LIBRARIES sc::sc-core sc::sc-net)
 
 add_sc_libraries(DESCRIPTION "simply-cpp Cassandra (CQL) client")
 target_compile_features(sc-cassandra PUBLIC cxx_std_20)
@@ -35,4 +36,4 @@ endif ()
 
 add_sc_example(sc-cassandra-demo)
 
-package_sc_module(DEV_DEPENDS "simply-cpp-dev (>= 3.0.0~)")
+package_sc_module(DEV_DEPENDS "simply-cpp-dev (>= 4.0.0~)" "simply-cpp-net-dev (>= 1.0.0~)")
